@@ -30,10 +30,15 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     filename='homework_check.log',
     level=logging.INFO)
-handler = RotatingFileHandler('homework_check.log', maxBytes=50000000, backupCount=5)
+handler = RotatingFileHandler(
+    'homework_check.log',
+    maxBytes=50000000,
+    backupCount=5
+)
 
 
 def send_message(bot, message):
+    """Отправка сообщения."""
     return bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 
