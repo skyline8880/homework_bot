@@ -10,11 +10,11 @@ class BreakSendMessage(Exception):
     pass
 
 
-class MissedKey(Exception):
+class MissedKey(KeyError):
     pass
 
 
-class NotDictType(Exception):
+class NotDictType(KeyError):
     pass
 
 

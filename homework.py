@@ -76,14 +76,12 @@ def check_response(response):
     if not isinstance(response['homeworks'], list):
         raise NotListType('Отсутствует тип данных - "список"')
     if not response['homeworks']:
-        return response['homeworks']
+        raise NoInfo('Нет данных')
     return response['homeworks'][0]
 
 
 def parse_status(homework):
     """Извлечение, необходимой нам, информации."""
-    if not homework:
-        raise NoInfo('Нет данных')
     if not isinstance(homework, dict):
         raise NotDictType('Ответ в неверном типе данных')
     if ('homework_name' not in homework.keys()
