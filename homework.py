@@ -59,9 +59,9 @@ def get_api_answer(current_timestamp):
             raise Not200Status(f'Сбой, при переходе по ссылке: {ENDPOINT}')
         return api_answer.json()
     except ConnectionError:
-        print('Отсутсвует соединение')
+        print('Отсутствует соединение')
     except InvalidURL:
-        print('Невереный адрес')
+        print('Неверный адрес')
     except Timeout:
         print('Время ожидания истекло')
     except RequestException:
