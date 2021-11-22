@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from requests.exceptions import (ConnectionError, InvalidURL, RequestException,
                                  Timeout)
 
-from exceptions import (BreakSendMessage, MissedKey, Not200Status, NotListType,
-                        WrongDocType, NotDictType, NoInfo)
+from exceptions import (MissedKey, NoInfo, Not200Status, NotDict,
+                        NotDictResponse, NotListType, WrongDocType)
 
 load_dotenv()
 
@@ -18,7 +18,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
 
-RETRY_TIME = 10
+RETRY_TIME = 2
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -45,49 +45,52 @@ def send_message(bot, message):
         send = bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.info('Сообщение успешно отправлено')
         return send
-    except BreakSendMessage:
-        raise BreakSendMessage('Не удалось отправить сообщение')
+    except telegram.error.TelegramError:
+        raise telegram.error.TelegramError('Не удалось отправить сообщение')
 
 
 def get_api_answer(current_timestamp):
     """Запрос и обработка информации с сервера."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
+    api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    if api_answer.status_code != 200:
+        raise Not200Status(f'Сбой, при переходе по ссылке: {ENDPOINT}')
     try:
-        api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
-        if api_answer.status_code != 200:
-            raise Not200Status(f'Сбой, при переходе по ссылке: {ENDPOINT}')
         return api_answer.json()
     except ConnectionError:
-        print('Отсутствует соединение')
+        raise ConnectionError('Отсутствует соединение')
     except InvalidURL:
-        print('Неверный адрес')
+        raise InvalidURL('Неверный адрес')
     except Timeout:
-        print('Время ожидания истекло')
+        raise Timeout('Время ожидания истекло')
     except RequestException:
-        print('Сбой при подключении')
+        raise RequestException('Сбой при подключении')
 
 
 def check_response(response):
     """Проверка, полученных данных."""
-    if isinstance(response, dict):
-        if 'homeworks' not in response.keys():
-            raise MissedKey('Отсутствует ключевое значение - "homeworks"')
+    if not isinstance(response, dict):
+        raise NotDictResponse('Ответ в неверном типе данных')
+    if 'homeworks' not in response:
+        raise MissedKey('Отсутствует ключевое значение - "homeworks"')
     if not isinstance(response['homeworks'], list):
         raise NotListType('Отсутствует тип данных - "список"')
     if not response['homeworks']:
-        raise NoInfo('Нет данных')
+        return response['homeworks']
     return response['homeworks'][0]
 
 
 def parse_status(homework):
     """Извлечение, необходимой нам, информации."""
+    if not homework:
+        raise NoInfo('Нет новых данных')
     if not isinstance(homework, dict):
-        raise NotDictType('Ответ в неверном типе данных')
-    if ('homework_name' not in homework.keys()
-            or 'status' not in homework.keys()):
+        raise NotDict('Ответ в неверном типе данных')
+    if ('homework_name' not in homework
+            or 'status' not in homework):
         raise MissedKey('Отсутствует ключ, "homework_name" или "status"')
-    if homework['status'] not in HOMEWORK_STATUSES.keys():
+    if homework['status'] not in HOMEWORK_STATUSES:
         raise WrongDocType('Недопустимое значение ключа - "status"')
     homework_name = homework['homework_name']
     homework_status = homework['status']
@@ -107,7 +110,7 @@ def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-    error_messages = []
+    error_message = ''
     if check_tokens():
         while True:
             try:
@@ -116,15 +119,14 @@ def main():
                 response = parse_status(check_api)
                 logging.debug(response)
                 send_message(bot, response)
-                logging.info(response)
                 current_timestamp = get_api['current_date']
+            except NoInfo as i:
+                logging.debug(i)
             except Exception as error:
                 message = f'Сбой в работе программы: {error}'
-                if (message not in error_messages
-                        or message != error_messages[0]):
-                    error_messages.append(message)
-                    send_message(bot, message)
-                    logging.info(message)
+                if message != error_message:
+                    error_message = message
+                    send_message(bot, error_message)
                 logging.error(message)
             time.sleep(RETRY_TIME)
 

@@ -1,4 +1,4 @@
-class NotListType(Exception):
+class NotListType(TypeError):
     pass
 
 
@@ -6,15 +6,11 @@ class Not200Status(Exception):
     pass
 
 
-class BreakSendMessage(Exception):
-    pass
-
-
 class MissedKey(KeyError):
     pass
 
 
-class NotDictType(KeyError):
+class NotDict(KeyError):
     pass
 
 
@@ -23,4 +19,8 @@ class WrongDocType(Exception):
 
 
 class NoInfo(Exception):
+    pass
+
+
+class NotDictResponse(TypeError):
     pass
