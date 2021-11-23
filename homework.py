@@ -6,12 +6,10 @@ from logging.handlers import RotatingFileHandler
 import requests
 import telegram
 from dotenv import load_dotenv
-from requests.exceptions import (ConnectionError, InvalidURL, RequestException,
-                                 Timeout)
+from requests.exceptions import RequestException
 
-from exceptions import (MissedKey, NoInfo, Not200Status, NotDict,
-                        NotDictResponse, NotListType, WrongDocType,
-                        BadConnection, WrongURL, TimeLimit, BadRequestStatus)
+from exceptions import (BadRequestStatus, MissedKey, NoInfo, Not200Status,
+                        NotDict, NotDictResponse, NotListType, WrongDocType)
 
 load_dotenv()
 
@@ -19,7 +17,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
 
-RETRY_TIME = 600
+RETRY_TIME = 2
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -56,13 +54,6 @@ def get_api_answer(current_timestamp):
     params = {'from_date': timestamp}
     try:
         api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    except ConnectionError:
-        raise BadConnection('Отсутствует соединение, '
-                            'возможно сбой на сервере')
-    except InvalidURL:
-        raise WrongURL('Неверный адрес или ссылка устарела')
-    except Timeout:
-        raise TimeLimit('Время ожидания истекло, повторите запрос')
     except RequestException:
         raise BadRequestStatus('Сбой при подключении, '
                                'попробуйте повторить запрос')
@@ -109,28 +100,29 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens():
-        bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        current_timestamp = int(time.time())
-        error_message = ''
-        while True:
-            try:
-                get_api = get_api_answer(current_timestamp)
-                check_api = check_response(get_api)
-                response = parse_status(check_api)
-                logging.debug(response)
-                send_message(bot, response)
-                error_message = ''
-                current_timestamp = get_api['current_date']
-            except NoInfo as i:
-                logging.debug(i)
-            except Exception as error:
-                message = f'Сбой в работе программы: {error}'
-                if message != error_message:
-                    error_message = message
-                    send_message(bot, error_message)
-                logging.error(message)
-            time.sleep(RETRY_TIME)
+    if not check_tokens():
+        return
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time())
+    error_message = ''
+    while True:
+        try:
+            get_api = get_api_answer(current_timestamp)
+            check_api = check_response(get_api)
+            response = parse_status(check_api)
+            logging.debug(response)
+            send_message(bot, response)
+            error_message = ''
+            current_timestamp = get_api['current_date']
+        except NoInfo as i:
+            logging.debug(i)
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            if message != error_message:
+                error_message = message
+                send_message(bot, error_message)
+            logging.error(message)
+        time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':

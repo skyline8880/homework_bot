@@ -26,17 +26,5 @@ class NotDictResponse(TypeError):
     pass
 
 
-class BadConnection(Exception):
-    pass
-
-
-class WrongURL(Exception):
-    pass
-
-
-class TimeLimit(Exception):
-    pass
-
-
 class BadRequestStatus(Exception):
     pass
