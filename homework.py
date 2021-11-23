@@ -107,9 +107,9 @@ def check_tokens():
     return True
 
 
-if check_tokens():
-    def main():
-        """Основная логика работы бота."""
+def main():
+    """Основная логика работы бота."""
+    if check_tokens():
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
         current_timestamp = int(time.time())
         error_message = ''
