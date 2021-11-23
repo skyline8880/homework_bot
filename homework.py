@@ -67,7 +67,7 @@ def get_api_answer(current_timestamp):
         raise BadRequestStatus('Сбой при подключении, '
                                'попробуйте повторить запрос')
     if api_answer.status_code != 200:
-        raise Not200Status(f'Сбой, при переходе по ссылке: {ENDPOINT}')
+        raise Not200Status(f'Сбой при переходе по ссылке: {ENDPOINT}')
     return api_answer.json()
 
 
