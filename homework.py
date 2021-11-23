@@ -10,7 +10,8 @@ from requests.exceptions import (ConnectionError, InvalidURL, RequestException,
                                  Timeout)
 
 from exceptions import (MissedKey, NoInfo, Not200Status, NotDict,
-                        NotDictResponse, NotListType, WrongDocType)
+                        NotDictResponse, NotListType, WrongDocType,
+                        BadConnection, WrongURL, TimeLimit, BadRequestStatus)
 
 load_dotenv()
 
@@ -18,7 +19,7 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('CHAT_ID')
 
-RETRY_TIME = 2
+RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -46,26 +47,28 @@ def send_message(bot, message):
         logging.info('Сообщение успешно отправлено')
         return send
     except telegram.error.TelegramError:
-        raise telegram.error.TelegramError('Не удалось отправить сообщение')
+        logging.error('Не удалось отправить сообщение')
 
 
 def get_api_answer(current_timestamp):
     """Запрос и обработка информации с сервера."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    try:
+        api_answer = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    except ConnectionError:
+        raise BadConnection('Отсутствует соединение, '
+                            'возможно сбой на сервере')
+    except InvalidURL:
+        raise WrongURL('Неверный адрес или ссылка устарела')
+    except Timeout:
+        raise TimeLimit('Время ожидания истекло, повторите запрос')
+    except RequestException:
+        raise BadRequestStatus('Сбой при подключении, '
+                               'попробуйте повторить запрос')
     if api_answer.status_code != 200:
         raise Not200Status(f'Сбой, при переходе по ссылке: {ENDPOINT}')
-    try:
-        return api_answer.json()
-    except ConnectionError:
-        raise ConnectionError('Отсутствует соединение')
-    except InvalidURL:
-        raise InvalidURL('Неверный адрес')
-    except Timeout:
-        raise Timeout('Время ожидания истекло')
-    except RequestException:
-        raise RequestException('Сбой при подключении')
+    return api_answer.json()
 
 
 def check_response(response):
@@ -77,14 +80,12 @@ def check_response(response):
     if not isinstance(response['homeworks'], list):
         raise NotListType('Отсутствует тип данных - "список"')
     if not response['homeworks']:
-        return response['homeworks']
+        raise NoInfo('Нет новых данных')
     return response['homeworks'][0]
 
 
 def parse_status(homework):
     """Извлечение, необходимой нам, информации."""
-    if not homework:
-        raise NoInfo('Нет новых данных')
     if not isinstance(homework, dict):
         raise NotDict('Ответ в неверном типе данных')
     if ('homework_name' not in homework
@@ -106,12 +107,12 @@ def check_tokens():
     return True
 
 
-def main():
-    """Основная логика работы бота."""
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
-    error_message = ''
-    if check_tokens():
+if check_tokens():
+    def main():
+        """Основная логика работы бота."""
+        bot = telegram.Bot(token=TELEGRAM_TOKEN)
+        current_timestamp = int(time.time())
+        error_message = ''
         while True:
             try:
                 get_api = get_api_answer(current_timestamp)
@@ -119,6 +120,7 @@ def main():
                 response = parse_status(check_api)
                 logging.debug(response)
                 send_message(bot, response)
+                error_message = ''
                 current_timestamp = get_api['current_date']
             except NoInfo as i:
                 logging.debug(i)
